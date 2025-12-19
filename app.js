@@ -1,5 +1,3 @@
-let currentPickId = null;
-
 // =======================
 // 儲存片單
 // =======================
@@ -10,22 +8,24 @@ function saveList() {
     return;
   }
 
-  const list = text
-    .split("\n")
-    .map(line => {
-      const [id, actor = "", tag = ""] = line.split("||");
-      return { id: id.trim(), actor: actor.trim(), tag: tag.trim() };
-    })
-    .filter(item => item.id);
+  const list = text.split("\n").map(line => {
+    const [id, actor, tag] = line.split("|");
+    return {
+      id: id?.trim(),
+      actor: actor?.trim() || "",
+      tag: tag?.trim() || ""
+    };
+  }).filter(item => item.id);
 
   localStorage.setItem("avList", JSON.stringify(list));
-  document.getElementById("status").innerText =
-    `✅ 已儲存 ${list.length} 部影片`;
+  document.getElementById("status").innerText = `✅ 已儲存 ${list.length} 部影片`;
 }
 
 // =======================
 // 抽籤
 // =======================
+let lastPickId = null;
+
 function draw() {
   const raw = localStorage.getItem("avList");
   if (!raw) {
@@ -34,69 +34,87 @@ function draw() {
   }
 
   const list = JSON.parse(raw);
-  if (list.length === 0) {
-    document.getElementById("result").innerText = "❌ 片單是空的";
-    return;
-  }
-
   const pick = list[Math.floor(Math.random() * list.length)];
-  currentPickId = pick.id;
+  lastPickId = pick.id;
 
   const url = `https://jable.tv/videos/${pick.id}/`;
 
   document.getElementById("result").innerHTML = `
     <strong>${pick.id}</strong><br>
-    女優：${pick.actor || "（尚未填寫）"}<br>
-    <a href="${url}" target="_blank">▶ 開啟影片頁</a>
-    <hr>
-    <input id="actorInput" placeholder="輸入女優名字">
-    <button onclick="saveActor()">💾 儲存女優</button>
+    女優：${pick.actor || "—"}<br>
+    分類：${pick.tag || "—"}<br>
+    <a href="${url}" target="_blank">▶ 開啟影片</a><br><br>
+    <button onclick="fetchActor()">🔧 補女優（電腦）</button>
   `;
 }
 
 // =======================
-// 儲存女優（抽到後）
+// 補女優（電腦用）
 // =======================
-function saveActor() {
-  const actor = document.getElementById("actorInput").value.trim();
-  if (!actor || !currentPickId) return;
+async function fetchActor() {
+  if (!lastPickId) return alert("❌ 尚未抽籤");
 
-  const list = JSON.parse(localStorage.getItem("avList"));
+  const url = `https://jable.tv/videos/${lastPickId}/`;
 
-  const item = list.find(v => v.id === currentPickId);
-  if (item) {
-    item.actor = actor;
-    localStorage.setItem("avList", JSON.stringify(list));
-    alert("✅ 女優已儲存");
+  try {
+    const res = await fetch(url);
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    // ⚠️ 這裡是關鍵：抓女優名稱
+    const actorEl = doc.querySelector('a[href^="/actors/"]');
+    const actorName = actorEl ? actorEl.textContent.trim() : "";
+
+    if (!actorName) {
+      alert("⚠️ 找不到女優（可能是版面改了）");
+      return;
+    }
+
+    // 寫回 localStorage
+    const list = JSON.parse(localStorage.getItem("avList"));
+    const target = list.find(v => v.id === lastPickId);
+    if (target) {
+      target.actor = actorName;
+      localStorage.setItem("avList", JSON.stringify(list));
+      alert(`✅ 已補上女優：${actorName}`);
+    }
+
+  } catch (e) {
+    alert("❌ 抓取失敗（請用電腦 Chrome）");
   }
 }
 
 // =======================
-// 依女優列出影片
+// 依女優列出
 // =======================
 function listByActor() {
   const keyword = document.getElementById("actorFilter").value.trim();
-  if (!keyword) return;
+  const raw = localStorage.getItem("avList");
+  if (!raw || !keyword) return;
 
-  const list = JSON.parse(localStorage.getItem("avList")) || [];
-
-  const filtered = list.filter(
-    v => v.actor && v.actor.includes(keyword)
+  const list = JSON.parse(raw).filter(v =>
+    v.actor && v.actor.includes(keyword)
   );
 
-  if (filtered.length === 0) {
-    document.getElementById("listResult").innerText =
-      "⚠️ 找不到符合的影片";
-    return;
-  }
+  document.getElementById("result").innerHTML =
+    list.length
+      ? list.map(v => `• ${v.id}｜${v.actor}`).join("<br>")
+      : "⚠️ 找不到影片";
+}
 
-  document.getElementById("listResult").innerHTML =
-    filtered
-      .map(v =>
-        `<div>
-          ${v.id}　
-          <a href="https://jable.tv/videos/${v.id}/" target="_blank">▶</a>
-        </div>`
-      )
-      .join("");
+// =======================
+// 匯出 / 匯入
+// =======================
+function exportList() {
+  const raw = localStorage.getItem("avList");
+  if (!raw) return;
+  document.getElementById("backup").value = raw;
+  alert("✅ 已匯出");
+}
+
+function importList() {
+  const text = document.getElementById("backup").value.trim();
+  if (!text) return;
+  localStorage.setItem("avList", text);
+  alert("✅ 匯入完成");
 }
