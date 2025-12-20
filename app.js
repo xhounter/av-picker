@@ -1,4 +1,15 @@
 // =======================
+// 共用工具
+// =======================
+function getList() {
+  return JSON.parse(localStorage.getItem("avList") || "[]");
+}
+
+function saveListToStorage(list) {
+  localStorage.setItem("avList", JSON.stringify(list));
+}
+
+// =======================
 // 儲存片單
 // =======================
 function saveList() {
@@ -8,32 +19,36 @@ function saveList() {
     return;
   }
 
-  const list = text.split("\n").map(line => {
-    const [id, actor, tag] = line.split("|");
-    return {
-      id: id?.trim(),
-      actor: actor?.trim() || "",
-      tag: tag?.trim() || ""
-    };
-  }).filter(item => item.id);
+  const list = text
+    .split("\n")
+    .map(line => {
+      const [id, actor, tag, note] = line.split("|");
+      return {
+        id: id?.trim(),
+        actor: actor?.trim() || "",
+        tag: tag?.trim() || "",
+        note: note?.trim() || ""
+      };
+    })
+    .filter(v => v.id);
 
-  localStorage.setItem("avList", JSON.stringify(list));
-  document.getElementById("status").innerText = `✅ 已儲存 ${list.length} 部影片`;
+  saveListToStorage(list);
+  document.getElementById("status").innerText =
+    `✅ 已儲存 ${list.length} 部影片`;
 }
 
 // =======================
-// 抽籤
+// 抽籤 + 記錄歷史（只記一次）
 // =======================
 let lastPickId = null;
 
 function draw() {
-  const raw = localStorage.getItem("avList");
-  if (!raw) {
+  const list = getList();
+  if (!list.length) {
     document.getElementById("result").innerText = "❌ 尚未有片單";
     return;
   }
 
-  const list = JSON.parse(raw);
   const pick = list[Math.floor(Math.random() * list.length)];
   lastPickId = pick.id;
 
@@ -42,73 +57,90 @@ function draw() {
   document.getElementById("result").innerHTML = `
     <strong>${pick.id}</strong><br>
     女優：${pick.actor || "—"}<br>
-    分類：${pick.tag || "—"}<br>
-    <a href="${url}" target="_blank">▶ 開啟影片</a><br><br>
-    <button onclick="fetchActor()">🔧 補女優（電腦）</button>
+    標籤：${pick.tag || "—"}<br>
+    備註：${pick.note || "—"}<br>
+    <a href="${url}" target="_blank">▶ 開啟影片</a>
+  `;
+
+  addHistory(pick);
+}
+
+// =======================
+// 手動補女優（不會影響抽籤）
+// =======================
+function saveActor() {
+  const name = document.getElementById("manualActor").value.trim();
+  if (!name) {
+    alert("❌ 請輸入女優名字");
+    return;
+  }
+  if (!lastPickId) {
+    alert("❌ 尚未抽籤");
+    return;
+  }
+
+  const list = getList();
+  const target = list.find(v => v.id === lastPickId);
+  if (!target) {
+    alert("❌ 找不到影片");
+    return;
+  }
+
+  target.actor = name;
+  saveListToStorage(list);
+
+  alert(`✅ 已補上女優：${name}`);
+  document.getElementById("manualActor").value = "";
+
+  // 只更新顯示，不再抽一次
+  drawResultOnly(target);
+}
+
+function drawResultOnly(pick) {
+  const url = `https://jable.tv/videos/${pick.id}/`;
+  document.getElementById("result").innerHTML = `
+    <strong>${pick.id}</strong><br>
+    女優：${pick.actor || "—"}<br>
+    標籤：${pick.tag || "—"}<br>
+    備註：${pick.note || "—"}<br>
+    <a href="${url}" target="_blank">▶ 開啟影片</a>
   `;
 }
 
 // =======================
-// 補女優（電腦用）
-// =======================
-async function fetchActor() {
-  if (!lastPickId) return alert("❌ 尚未抽籤");
-
-  const url = `https://jable.tv/videos/${lastPickId}/`;
-
-  try {
-    const res = await fetch(url);
-    const html = await res.text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
-    // ⚠️ 這裡是關鍵：抓女優名稱
-    const actorEl = doc.querySelector('a[href^="/actors/"]');
-    const actorName = actorEl ? actorEl.textContent.trim() : "";
-
-    if (!actorName) {
-      alert("⚠️ 找不到女優（可能是版面改了）");
-      return;
-    }
-
-    // 寫回 localStorage
-    const list = JSON.parse(localStorage.getItem("avList"));
-    const target = list.find(v => v.id === lastPickId);
-    if (target) {
-      target.actor = actorName;
-      localStorage.setItem("avList", JSON.stringify(list));
-      alert(`✅ 已補上女優：${actorName}`);
-    }
-
-  } catch (e) {
-    alert("❌ 抓取失敗（請用電腦 Chrome）");
-  }
-}
-
-// =======================
-// 依女優列出
+// 女優搜尋（只顯示在 actorResult）
 // =======================
 function listByActor() {
   const keyword = document.getElementById("actorFilter").value.trim();
-  const raw = localStorage.getItem("avList");
-  if (!raw || !keyword) return;
+  if (!keyword) {
+    alert("請輸入女優名字");
+    return;
+  }
 
-  const list = JSON.parse(raw).filter(v =>
+  const list = getList().filter(v =>
     v.actor && v.actor.includes(keyword)
   );
 
-  document.getElementById("result").innerHTML =
-    list.length
-      ? list.map(v => `• ${v.id}｜${v.actor}`).join("<br>")
-      : "⚠️ 找不到影片";
+  const html = list.length
+    ? list
+        .map(v => {
+          const url = `https://jable.tv/videos/${v.id}/`;
+          return `• <a href="${url}" target="_blank">${v.id}</a>｜${v.actor}`;
+        })
+        .join("<br>")
+    : "⚠️ 找不到影片";
+
+  document.getElementById("actorResult").innerHTML = html;
+  addSearchHistory(keyword, list.length);
+
 }
 
 // =======================
 // 匯出 / 匯入
 // =======================
 function exportList() {
-  const raw = localStorage.getItem("avList");
-  if (!raw) return;
-  document.getElementById("backup").value = raw;
+  document.getElementById("backup").value =
+    localStorage.getItem("avList") || "";
   alert("✅ 已匯出");
 }
 
@@ -118,3 +150,113 @@ function importList() {
   localStorage.setItem("avList", text);
   alert("✅ 匯入完成");
 }
+
+// =======================
+// 觀看歷史（只以「日」為單位）
+// =======================
+function addHistory(pick) {
+  const history = JSON.parse(localStorage.getItem("watchHistory") || "[]");
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  history.unshift({
+    id: pick.id,
+    actor: pick.actor || "",
+    date: today
+  });
+
+  localStorage.setItem("watchHistory", JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory(filterDate = "") {
+  const history = JSON.parse(localStorage.getItem("watchHistory") || "[]");
+  const map = {};
+
+  history.forEach(h => {
+    if (filterDate && h.date !== filterDate) return;
+    if (!map[h.date]) map[h.date] = [];
+    map[h.date].push(h);
+  });
+
+  const html = Object.keys(map)
+    .sort((a, b) => b.localeCompare(a))
+    .map(date => `
+      <details>
+        <summary>${date}（${map[date].length} 部）</summary>
+        ${map[date]
+          .map(v => `• <a href="https://jable.tv/videos/${v.id}/" target="_blank">${v.id}</a>${v.actor ? "｜" + v.actor : ""}`)
+          .join("<br>")}
+      </details>
+    `)
+    .join("");
+
+  document.getElementById("historyList").innerHTML =
+    html || "（沒有紀錄）";
+}
+
+function filterHistory() {
+  const date = document.getElementById("historyDate").value;
+  renderHistory(date);
+}
+
+function clearHistory() {
+  if (!confirm("確定清空？")) return;
+  localStorage.removeItem("watchHistory");
+  renderHistory();
+}
+
+// 初始顯示
+renderHistory();
+
+// =======================
+// 搜尋紀錄（女優搜尋）
+// =======================
+function addSearchHistory(keyword, count) {
+  const history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+  const today = new Date().toISOString().slice(0, 10);
+
+  history.unshift({
+    keyword,
+    count,
+    date: today
+  });
+
+  localStorage.setItem("searchHistory", JSON.stringify(history));
+  renderSearchHistory();
+}
+
+function renderSearchHistory(filterDate = "") {
+  const history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+  const map = {};
+
+  history.forEach(h => {
+    if (filterDate && h.date !== filterDate) return;
+    if (!map[h.date]) map[h.date] = [];
+    map[h.date].push(h);
+  });
+
+  const html = Object.keys(map).map(date => `
+    <details>
+      <summary>${date}（${map[date].length} 次搜尋）</summary>
+      ${map[date]
+        .map(v => `🔍 ${v.keyword}（${v.count} 部）`)
+        .join("<br>")}
+    </details>
+  `).join("");
+
+  document.getElementById("searchHistoryList").innerHTML =
+    html || "（沒有搜尋紀錄）";
+}
+
+function filterSearchHistory() {
+  const date = document.getElementById("searchHistoryDate").value;
+  renderSearchHistory(date);
+}
+
+function clearSearchHistory() {
+  if (!confirm("確定清空搜尋紀錄？")) return;
+  localStorage.removeItem("searchHistory");
+  renderSearchHistory();
+}
+

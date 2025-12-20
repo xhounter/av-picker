@@ -9,12 +9,19 @@
 
 <h1>🎲 AV 抽籤小工具</h1>
 
+<!-- ======================= -->
+<!-- 匯入片單 -->
+<!-- ======================= -->
 <h2>📥 匯入你的片單</h2>
 
-<textarea id="input" rows="6" style="width:100%;"
-placeholder="格式：
-番號|女優|分類
-ssni-261|三上悠亞|劇情"></textarea>
+<textarea
+  id="input"
+  rows="6"
+  style="width:100%;"
+  placeholder="格式：
+番號|女優|標籤|備註
+ssni-261|三上悠亞|劇情|白襪">
+</textarea>
 
 <br><br>
 <button onclick="saveList()">💾 儲存片單</button>
@@ -22,26 +29,86 @@ ssni-261|三上悠亞|劇情"></textarea>
 
 <hr>
 
+<!-- ======================= -->
+<!-- 抽籤 -->
+<!-- ======================= -->
 <h2>🎲 抽一部來看</h2>
 <button onclick="draw()">🎲 抽籤</button>
+
 <div id="result" style="margin-top:12px;"></div>
+
+<!-- 手動補女優（不會重抽） -->
+<input
+  id="manualActor"
+  placeholder="輸入女優名字（例如：三上悠亞）"
+  style="width:100%; padding:6px; margin-top:8px;"
+/>
+<br><br>
+<button onclick="saveActor()">💾 儲存女優</button>
 
 <hr>
 
+<!-- ======================= -->
+<!-- 女優搜尋 -->
+<!-- ======================= -->
 <h2>🔍 依女優列出影片</h2>
-<input id="actorFilter" placeholder="輸入女優名字"
-style="width:100%; padding:6px;" />
+
+<input
+  id="actorFilter"
+  placeholder="輸入女優名字"
+  style="width:100%; padding:6px;"
+/>
 <br><br>
 <button onclick="listByActor()">📋 列出影片</button>
 
+<!-- 🔴 重點：搜尋結果只顯示在這裡 -->
+<div id="actorResult" style="margin-top:8px;"></div>
+
 <hr>
 
+<!-- ======================= -->
+<!-- 觀看紀錄（只以「日」為單位） -->
+<!-- ======================= -->
+<h2>📄 觀看紀錄</h2>
+
+<input type="date" id="historyDate" />
+<button onclick="filterHistory()">🔍 搜尋</button>
+<button onclick="clearHistory()">🧹 清空</button>
+
+<div id="historyList" style="margin-top:8px;"></div>
+
+<hr>
+
+
+<!-- ======================= -->
+<!-- 觀看紀錄（只以「日」為單位） -->
+<!-- ======================= -->
+
+<hr>
+
+<h2>📂 搜尋紀錄</h2>
+
+<input type="date" id="searchHistoryDate" />
+<button onclick="filterSearchHistory()">🔍 搜尋</button>
+<button onclick="clearSearchHistory()">🧹 清空</button>
+
+<div id="searchHistoryList" style="margin-top:8px;"></div>
+
+
+<!-- ======================= -->
+<!-- 匯出 / 匯入 -->
+<!-- ======================= -->
 <h2>🔄 匯出 / 匯入</h2>
+
 <button onclick="exportList()">📤 匯出片單</button>
 <button onclick="importList()">📥 匯入片單</button>
 
-<textarea id="backup" rows="6" style="width:100%; margin-top:6px;"
-placeholder="匯出後會出現在這裡，或貼上要匯入的資料"></textarea>
+<textarea
+  id="backup"
+  rows="6"
+  style="width:100%; margin-top:6px;"
+  placeholder="匯出後會出現在這裡，或貼上要匯入的資料">
+</textarea>
 
 <script src="app.js"></script>
 </body>
